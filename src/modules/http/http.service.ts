@@ -8,9 +8,11 @@ import { args } from '../../config/args.js';
 export class HttpService {
   private readonly logger = new Logger(HttpService.name);
 
-  public createHttpClient(): Got {
+  constructor() {
     this.logger.log(`Proxy=${args.proxy}`);
+  }
 
+  public createHttpClient(): Got {
     const options: ExtendOptions = {
       https: { rejectUnauthorized: false },
       headers: { 'Content-Type': 'application/json' },
