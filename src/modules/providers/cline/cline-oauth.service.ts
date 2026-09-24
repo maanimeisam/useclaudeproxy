@@ -1,5 +1,4 @@
-import { Injectable } from '@nestjs/common';
-import { log } from 'console';
+import { Injectable, Logger } from '@nestjs/common';
 import { Got } from 'got';
 import { FORM_HEADERS } from '../../../config/configuration.js';
 import { HttpService } from '../../http/http.service.js';
@@ -15,6 +14,7 @@ import { AccessDeniedError, AccountInfo } from '../../../types.global.js';
 @Injectable()
 export class ClineOAUTH {
   private readonly http: Got;
+  private readonly logger = new Logger(ClineOAUTH.name);
   private readonly OAUTH = {
     deviceCodeUrl: 'https://api.workos.com/user_management/authorize/device',
     authenticateUrl: 'https://api.workos.com/user_management/authenticate',
@@ -32,7 +32,7 @@ export class ClineOAUTH {
   }
 
   async requestDeviceCode(): Promise<DeviceCodeResponse> {
-    log('Requesting device code');
+    this.logger.log('Requesting device code');
     const response = await this.http.post(this.OAUTH.deviceCodeUrl, {
       headers: FORM_HEADERS,
       body: `client_id=${this.OAUTH.clientId}`,
@@ -46,7 +46,7 @@ export class ClineOAUTH {
   }
 
   async pollForToken(deviceCode: string): Promise<TokenResponse> {
-    log('Polling for token');
+    this.logger.log('Polling for token');
     while (true) {
       await this.commonService.sleep(this.pollIntervalMs);
       const response = await this.http.post(this.OAUTH.authenticateUrl, {
@@ -73,7 +73,7 @@ export class ClineOAUTH {
   }
 
   async refreshToken(refreshToken: string): Promise<TokenResponse> {
-    log('Refreshing access token');
+    this.logger.log('Refreshing access token');
     const response = await this.http.post(this.OAUTH.authenticateUrl, {
       headers: FORM_HEADERS,
       body: `grant_type=refresh_token&client_id=${this.OAUTH.clientId}&refresh_token=${refreshToken}`,
@@ -87,7 +87,7 @@ export class ClineOAUTH {
   }
 
   async fetchAccountInfo(accessToken: string): Promise<AccountInfo> {
-    log('Verifying access token');
+    this.logger.log('Verifying access token');
     const response = await this.http.get(this.OAUTH.verifyUrl, {
       headers: {
         Authorization: `Bearer ${accessToken}`,

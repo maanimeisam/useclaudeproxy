@@ -1,5 +1,4 @@
-import { Injectable } from '@nestjs/common';
-import Debug from 'debug';
+import { Injectable, Logger } from '@nestjs/common';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,9 +9,6 @@ import { Got } from 'got';
 import { CommonService } from '../../common/common.service.js';
 import { YamlService } from '../../yaml/yaml.service.js';
 import { HttpService } from '../../http/http.service.js';
-
-const log = Debug('useclaudeproxy:opencode');
-const errorLog = Debug('useclaudeproxy:opencode:error');
 
 type Token = {
   key: string;
@@ -52,6 +48,7 @@ function buildOpenCodeHeaders(sessionId?: string): Record<string, string> {
 export class OpencodeService extends BaseProvider {
   readonly name = 'opencode';
   readonly baseUrl = 'https://opencode.ai/zen/v1';
+  readonly logger = new Logger(OpencodeService.name);
   public readonly tokenPath: string;
   private readonly httpClient: Got;
 
@@ -118,10 +115,8 @@ export class OpencodeService extends BaseProvider {
       this.configService.get<number>('WATCH_INTERVAL_MS')!;
     const token = await this.getValidToken();
 
-    log(
-      'Watching OpenCode provider at %s every %dms',
-      this.baseUrl,
-      WATCH_INTERVAL_MS,
+    this.logger.log(
+      `Watching OpenCode provider at ${this.baseUrl} every ${WATCH_INTERVAL_MS}ms`,
     );
     while (!signal?.aborted) {
       try {
@@ -150,9 +145,9 @@ export class OpencodeService extends BaseProvider {
         if (res.statusCode !== 200) {
           throw new Error(`StatusCode: ${res.statusCode}`);
         }
-        log('OpenCode provider reachable');
+        this.logger.log('OpenCode provider reachable');
       } catch (err) {
-        errorLog('OpenCode provider unavailable: %o', err);
+        this.logger.error(`OpenCode provider unavailable: ${err}`);
       }
       await this.commonService.sleep(WATCH_INTERVAL_MS, signal);
     }

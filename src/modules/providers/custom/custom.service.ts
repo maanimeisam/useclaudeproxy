@@ -1,5 +1,4 @@
-import { Injectable } from '@nestjs/common';
-import Debug from 'debug';
+import { Injectable, Logger } from '@nestjs/common';
 import fs from 'node:fs';
 import path from 'node:path';
 import { args } from '../../../config/args.js';
@@ -10,9 +9,6 @@ import { CommonService } from '../../common/common.service.js';
 import { YamlService } from '../../yaml/yaml.service.js';
 import { HttpService } from '../../http/http.service.js';
 
-const log = Debug('useclaudeproxy:custom');
-const errorLog = Debug('useclaudeproxy:custom:error');
-
 type Token = {
   key: string;
 };
@@ -21,6 +17,7 @@ type Token = {
 export class CustomService extends BaseProvider {
   readonly name = 'custom';
   readonly baseUrl = args.url;
+  readonly logger = new Logger(CustomService.name);
   public readonly tokenPath: string;
   private readonly httpClient: Got;
 
@@ -84,10 +81,8 @@ export class CustomService extends BaseProvider {
       this.configService.get<number>('WATCH_INTERVAL_MS')!;
     const token = await this.getValidToken();
 
-    log(
-      'Watching custom provider at %s every %dms',
-      this.baseUrl,
-      WATCH_INTERVAL_MS,
+    this.logger.log(
+      `Watching custom provider at ${this.baseUrl} every ${WATCH_INTERVAL_MS}ms`,
     );
     while (!signal?.aborted) {
       try {
@@ -114,9 +109,9 @@ export class CustomService extends BaseProvider {
         if (res.statusCode !== 200) {
           throw new Error(`StatusCode: ${res.statusCode}`);
         }
-        log('Custom provider reachable');
+        this.logger.log('Custom provider reachable');
       } catch (err) {
-        errorLog('Custom provider unavailable: %o', err);
+        this.logger.error(`Custom provider unavailable: ${err}`);
       }
       await this.commonService.sleep(WATCH_INTERVAL_MS, signal);
     }

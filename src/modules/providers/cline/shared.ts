@@ -1,8 +1,4 @@
-import Debug from 'debug';
 import crypto from 'node:crypto';
-
-export const log = Debug('useclaudeproxy:cline');
-export const errorLog = Debug('useclaudeproxy:cline:error');
 
 export class OAuthHttpError extends Error {
   constructor(

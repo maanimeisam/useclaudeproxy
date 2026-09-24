@@ -1,8 +1,3 @@
-import Debug from 'debug';
-
-export const log = Debug('useclaudeproxy:hermes');
-export const errorLog = Debug('useclaudeproxy:hermes:error');
-
 export class OAuthHttpError extends Error {
   constructor(
     message: string,

@@ -1,5 +1,4 @@
 import { Got } from 'got';
-import { log } from 'node:console';
 import { FORM_HEADERS } from '../../../config/configuration.js';
 import { AccountInfo, AccessDeniedError } from '../../../types.global.js';
 import {
@@ -10,11 +9,12 @@ import {
 import { OAuthHttpError, DeviceCodeExpiredError, parseBody } from './shared.js';
 import { HttpService } from '../../http/http.service.js';
 import { CommonService } from '../../common/common.service.js';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 @Injectable()
 export class HermesOAUTH {
   private readonly httpClient: Got;
+  private readonly logger = new Logger(HermesOAUTH.name);
   private readonly OAUTH = {
     baseUrl: 'https://portal.nousresearch.com/api/oauth',
     clientId: 'hermes-cli',
@@ -32,7 +32,7 @@ export class HermesOAUTH {
   }
 
   async requestDeviceCode(): Promise<DeviceCodeResponse> {
-    log('Requesting device code');
+    this.logger.log('Requesting device code');
     const response = await this.httpClient.post(
       `${this.OAUTH.baseUrl}/device/code`,
       {
@@ -47,7 +47,7 @@ export class HermesOAUTH {
   }
 
   async pollForToken(deviceCode: string): Promise<TokenResponse> {
-    log('Polling for token');
+    this.logger.log('Polling for token');
     while (true) {
       await this.commonService.sleep(this.pollIntervalMs);
       const response = await this.httpClient.post(
@@ -72,7 +72,7 @@ export class HermesOAUTH {
   }
 
   async refreshToken(refreshToken: string): Promise<TokenResponse> {
-    log('Refreshing access token');
+    this.logger.log('Refreshing access token');
     const response = await this.httpClient.post(`${this.OAUTH.baseUrl}/token`, {
       headers: {
         ...FORM_HEADERS,
@@ -87,7 +87,7 @@ export class HermesOAUTH {
   }
 
   async fetchAccountInfo(accessToken: string): Promise<AccountInfo> {
-    log('Fetching account information');
+    this.logger.log('Fetching account information');
     const response = await this.httpClient.get(
       `${this.OAUTH.baseUrl}/account`,
       {

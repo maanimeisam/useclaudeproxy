@@ -1,15 +1,13 @@
-import Debug from 'debug';
+import { Logger } from '@nestjs/common';
 import fs from 'node:fs';
 import { YamlService } from '../yaml/yaml.service.js';
 import { args } from '../../config/args.js';
-
-const log = Debug('useclaudeproxy:BaseProvider');
-// const errorLog = Debug('useclaudeproxy:BaseProvider:error');
 
 export abstract class BaseProvider {
   abstract readonly name: string;
   abstract readonly baseUrl: string;
   abstract readonly tokenPath: string;
+  abstract readonly logger: Logger;
 
   constructor(protected yamlService: YamlService) {}
 
@@ -54,7 +52,7 @@ export abstract class BaseProvider {
       force: true,
     });
 
-    log('Cleared stored token');
+    this.logger.log('Cleared stored token');
   }
 
   saveTokens(token: unknown): void {

@@ -1,15 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Debug from 'debug';
 import { CliproxyapiService } from './modules/cliproxyapi/cliproxyapi.service.js';
 import { ProviderService } from './modules/providers/provider.service.js';
 import { args } from './config/args.js';
 
-const log = Debug('useclaudeproxy:AppService');
-const errorLog = Debug('useclaudeproxy:AppService:error');
-
 @Injectable()
 export class AppService {
+  private readonly logger = new Logger(AppService.name);
+
   constructor(
     private configService: ConfigService,
     private cliproxyapiService: CliproxyapiService,
@@ -22,12 +20,8 @@ export class AppService {
       DEBUG: this.configService.get<string>('DEBUG'),
     };
 
-    log('Enviroment: %s', config.NODE_ENV);
-    if (config.NODE_ENV === 'development' && config.DEBUG)
-      Debug.enable(config.DEBUG);
-
+    this.logger.log(`Enviroment: ${config.NODE_ENV}`);
     const provider = this.providerService.getProvider(args.activeProvider);
-
     await this.cliproxyapiService.ensureCliProxy();
 
     if (args.renew) {
@@ -42,7 +36,7 @@ export class AppService {
       .runCliProxy()
       .then((code) => process.exit(code))
       .catch((err) => {
-        errorLog('Failed to run CLIProxyAPI: %o', err);
+        this.logger.error('Failed to run CLIProxyAPI:', err);
         process.exit(1);
       });
 

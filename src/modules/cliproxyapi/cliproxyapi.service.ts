@@ -1,5 +1,4 @@
-import { Injectable } from '@nestjs/common';
-import Debug from 'debug';
+import { Injectable, Logger } from '@nestjs/common';
 import cp from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -17,10 +16,9 @@ import { ProviderService } from '../providers/provider.service.js';
 import { YamlService } from '../yaml/yaml.service.js';
 import { HttpService } from '../http/http.service.js';
 
-const log = Debug('app:install');
-
 @Injectable()
 export class CliproxyapiService {
+  private readonly logger = new Logger(CliproxyapiService.name);
   private readonly CONFIG_PATH: string;
 
   constructor(
@@ -117,7 +115,9 @@ export class CliproxyapiService {
       fs.readdirSync(TOOLS_DIR).length > 0 &&
       !args.force
     ) {
-      log('CLIProxyAPI already present at %s, skipping download', TOOLS_DIR);
+      this.logger.log(
+        `CLIProxyAPI already present at ${TOOLS_DIR}, skipping download`,
+      );
       return;
     }
 
@@ -131,13 +131,15 @@ export class CliproxyapiService {
 
     if (!fs.existsSync(archivePath)) {
       console.error(`⬇️  Downloading from ${url}`);
-      log('Downloading %s', url);
+      this.logger.log(`Downloading ${url}`);
       await this.download(url, archivePath);
     } else {
-      log('Archive already present, skipping download: %s', archivePath);
+      this.logger.log(
+        `Archive already present, skipping download: ${archivePath}`,
+      );
     }
     this.extract(archivePath, TOOLS_DIR);
-    log('Installed CLIProxyAPI to %s', TOOLS_DIR);
+    this.logger.log(`Installed CLIProxyAPI to ${TOOLS_DIR}`);
     this.createConfig();
   }
 
@@ -157,7 +159,7 @@ export class CliproxyapiService {
       fs.rmSync(path.join(TOOLS_DIR, name), { recursive: true, force: true });
     }
     this.extract(archivePath, TOOLS_DIR);
-    log('Renewed CLIProxyAPI from %s', archivePath);
+    this.logger.log(`Renewed CLIProxyAPI from ${archivePath}`);
     this.createConfig();
   }
 
@@ -169,14 +171,14 @@ export class CliproxyapiService {
     }
     if (fs.existsSync(this.CONFIG_PATH)) return;
     fs.copyFileSync(example, this.CONFIG_PATH);
-    log('Seeded %s from %s', this.CONFIG_PATH, example);
+    this.logger.debug(`Seeded ${this.CONFIG_PATH} from ${example}`);
   }
 
   public async runCliProxy(proxyArgs: string[] = []): Promise<number> {
     this.yamlService.setProxyUrl(args.proxy);
 
     const argv = [BINARY_PATH, '-config', this.CONFIG_PATH, ...proxyArgs];
-    log('Spawning: %s', argv.join(' '));
+    this.logger.log(`Spawning: ${argv.join(' ')}`);
     const child = cp.spawn(argv[0], argv.slice(1), { stdio: 'inherit' });
 
     const forward = (sig: NodeJS.Signals) => () => child.kill(sig);

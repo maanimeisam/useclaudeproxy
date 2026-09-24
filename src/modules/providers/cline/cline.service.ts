@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import path from 'node:path';
 import open from 'open';
 import { args } from '../../../config/args.js';
@@ -7,13 +7,14 @@ import { ClineOAUTH } from './cline-oauth.service.js';
 import { YamlService } from '../../yaml/yaml.service.js';
 import { ConfigService } from '@nestjs/config';
 import { TokenResponse } from './cline.interface.js';
-import { errorLog, generateTaskId, log } from './shared.js';
+import { generateTaskId } from './shared.js';
 import { CommonService } from '../../common/common.service.js';
 
 @Injectable()
 export class ClineService extends BaseProvider {
   public readonly name = 'cline';
   public readonly baseUrl = 'https://api.cline.bot/api/v1';
+  readonly logger = new Logger(ClineService.name);
   public readonly tokenPath: string;
 
   constructor(
@@ -77,21 +78,21 @@ export class ClineService extends BaseProvider {
     if (stored) {
       try {
         await this.client.fetchAccountInfo(stored.access_token);
-        log('Stored token valid');
+        this.logger.log('Stored token valid');
         return stored;
       } catch (err) {
-        errorLog('Stored Access-Token invalid: %o', err);
+        this.logger.error(`Stored Access-Token invalid: ${err}`);
       }
       if (stored.refresh_token) {
         try {
-          log('Refreshing stored token');
+          this.logger.log('Refreshing stored token');
           const refreshed = await this.client.refreshToken(
             stored.refresh_token,
           );
           this.saveTokens(refreshed);
           return refreshed;
         } catch (err) {
-          errorLog('Stored Refresh-Token invalid: %o', err);
+          this.logger.error(`Stored Refresh-Token invalid: ${err}`);
         }
       }
     }
@@ -102,18 +103,18 @@ export class ClineService extends BaseProvider {
     const WATCH_INTERVAL_MS =
       this.configService.get<number>('WATCH_INTERVAL_MS')!;
 
-    log('Watching token every %dms', WATCH_INTERVAL_MS);
+    this.logger.log(`Watching token every ${WATCH_INTERVAL_MS}ms`);
     let current = (await this.getValidToken()).access_token;
 
     while (!signal?.aborted) {
       try {
         await this.client.fetchAccountInfo(current);
-        log('Token valid');
+        this.logger.log('Token valid');
       } catch (err) {
-        errorLog('Token invalid, renewing: %o', err);
+        this.logger.error(`Token invalid, renewing: ${err}`);
         const refreshed = await this.getValidToken();
         current = refreshed.access_token;
-        log('Token RENEWED');
+        this.logger.log('Token RENEWED');
       }
       await this.commonService.sleep(WATCH_INTERVAL_MS, signal);
     }
@@ -121,13 +122,13 @@ export class ClineService extends BaseProvider {
 
   private async runDeviceFlow(): Promise<TokenResponse> {
     const deviceCode = await this.client.requestDeviceCode();
-    log('Device code received: user_code=%s', deviceCode.user_code);
+    this.logger.log(`Device code received: user_code=${deviceCode.user_code}`);
 
     const verificationUrl =
       deviceCode.verification_uri_complete ?? deviceCode.verification_uri;
 
     await open(verificationUrl).catch((err) =>
-      log('Failed to open browser: %o', err),
+      this.logger.log(`Failed to open browser: ${err}`),
     );
 
     console.log(
@@ -135,7 +136,7 @@ export class ClineService extends BaseProvider {
     );
 
     const token = await this.client.pollForToken(deviceCode.device_code);
-    log('Authorization successful');
+    this.logger.log('Authorization successful');
     this.saveTokens(token);
     return token;
   }
