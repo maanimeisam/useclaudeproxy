@@ -50,19 +50,19 @@ export class ClineService extends BaseProvider {
       'Content-Type': 'application/json',
       'Http-Referer': 'https://cline.bot',
       'User-Agent':
-        'Cline/4.1.16 ai-sdk/openai-compatible/3.0.30 ai-sdk/provider-utils/5.0.27 runtime/node.js/v24.18.1',
-      'X-Client-Type': 'VSCode Extension',
-      'X-Client-Version': '4.1.16',
-      'X-Core-Version': '0.0.79',
-      'X-Is-Multiroot': 'true',
-      'X-Platform': 'Visual Studio Code',
-      'X-Platform-Version': '1.135.0',
+        'Cline/3.0.65 ai-sdk/openai-compatible/3.0.37 ai-sdk/provider-utils/5.0.30 runtime/bun/1.3.13',
+      'X-Client-Type': 'cline-cli',
+      'X-Client-Version': '3.0.65',
+      'X-Core-Version': '0.0.86',
+      'X-Is-Multiroot': 'false',
+      'X-Platform': 'cli',
+      'X-Platform-Version': '3.0.65',
       'X-Task-Id': generateTaskId(),
       'X-Title': 'Cline',
       Accept: '*/*',
       'Accept-Language': '*',
-      'Sec-Fetch-Mode': 'cors',
       'Accept-Encoding': 'gzip, deflate, br',
+      Connection: 'keep-alive',
     };
 
     api['disable-cooling'] = true;
