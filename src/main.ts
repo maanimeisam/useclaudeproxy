@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { AppService } from './app.service.js';
