@@ -1,21 +1,22 @@
 {
   "compilerOptions": {
-    "target": "esnext",
     "module": "nodenext",
     "moduleResolution": "nodenext",
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
+    "resolvePackageJsonExports": true,
     "esModuleInterop": true,
-    "skipLibCheck": true,
+    "isolatedModules": true,
     "declaration": true,
-    "declarationMap": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2023",
     "sourceMap": true,
-    "resolveJsonModule": true,
-    "allowImportingTsExtensions": true,
-    "rewriteRelativeImportExtensions": true,
-    "types": ["node"]
-  },
-  "include": ["src", "tests", "drizzle.config.ts", ".temp/auth.ts"],
-  "exclude": ["node_modules", "dist", ".temp", ".*", "data"]
+    "outDir": "./dist",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "strictPropertyInitialization": false,
+    "types": ["vitest/globals", "node"]
+  }
 }
