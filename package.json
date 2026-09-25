@@ -14,6 +14,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "renew":"rimraf dist/ data/",
+    "type-check": "tsc --noEmit",
     "lint": "oxlint src/ test/",
     "test": "vitest run",
     "test:watch": "vitest",
