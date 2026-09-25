@@ -8,6 +8,13 @@ export type Token<T = unknown> = {
   upstreamData: T;
 };
 
+export const ALL_API_ACCESS = [
+  'openai-compatibility',
+  'gemini-api-key',
+  'codex-api-key',
+] as const;
+export type ApiAccess = (typeof ALL_API_ACCESS)[number];
+
 export abstract class BaseProvider {
   abstract readonly name: string;
   abstract readonly baseUrl: string;
@@ -67,14 +74,25 @@ export abstract class BaseProvider {
     });
   }
 
-  setOpenAiApiKey(apiKey: string): void {
+  removeAllExcept(value: ApiAccess) {
     const config = this.yamlService.read();
-    if (!config['openai-compatibility']) {
+    ALL_API_ACCESS.forEach((key) => {
+      if (key === value) return;
+      delete config[key];
+    });
+
+    this.yamlService.write(config);
+  }
+
+  setOpenAiApiKey(apiKey: string): void {
+    const apiAccess = 'openai-compatibility';
+    const config = this.yamlService.read();
+    if (!config[apiAccess]) {
       this.logger.warn('empty config!');
       return;
     }
 
-    const api = config['openai-compatibility'][0];
+    const api = config[apiAccess][0];
     api['api-key-entries'] = [{ 'api-key': apiKey }];
     api['headers']['Authorization'] = `Bearer ${apiKey}`;
 
@@ -82,13 +100,14 @@ export abstract class BaseProvider {
   }
 
   setGeminiApiKey(apiKey: string): void {
+    const apiAccess = 'gemini-api-key';
     const config = this.yamlService.read();
-    if (!config['gemini-api-key']) {
+    if (!config[apiAccess]) {
       this.logger.warn('empty config!');
       return;
     }
 
-    const api = config['gemini-api-key'][0];
+    const api = config[apiAccess][0];
     api['api-key'] = apiKey;
     api['headers']['Authorization'] = `Bearer ${apiKey}`;
 
@@ -96,13 +115,14 @@ export abstract class BaseProvider {
   }
 
   setCodexApiKey(apiKey: string): void {
+    const apiAccess = 'codex-api-key';
     const config = this.yamlService.read();
-    if (!config['codex-api-key']) {
+    if (!config[apiAccess]) {
       this.logger.warn('empty config!');
       return;
     }
 
-    const api = config['codex-api-key'][0];
+    const api = config[apiAccess][0];
     api['api-key'] = apiKey;
     api['headers']['Authorization'] = `Bearer ${apiKey}`;
 
@@ -110,15 +130,18 @@ export abstract class BaseProvider {
   }
 
   protected async setAsOpenAiCompatible(): Promise<void> {
+    const apiAccess = 'openai-compatibility';
+    this.removeAllExcept(apiAccess);
+
     const token = await this.getValidToken();
 
     const config = this.yamlService.read();
     config['host'] = args.host;
     config['port'] = args.port;
     config['api-keys'] = [args.cliKey];
-    config['openai-compatibility'] = [{ name: this.name }];
+    config[apiAccess] = [{ name: this.name }];
 
-    const api = config['openai-compatibility'][0];
+    const api = config[apiAccess][0];
     api['base-url'] = this.baseUrl;
     api['models'] = [
       { name: args.model, alias: 'claude-opus-5' },
@@ -133,15 +156,18 @@ export abstract class BaseProvider {
   }
 
   protected async setAsGeminiCompatible(): Promise<void> {
+    const apiAccess = 'gemini-api-key';
+    this.removeAllExcept(apiAccess);
+
     const token = await this.getValidToken();
 
     const config = this.yamlService.read();
     config['host'] = args.host;
     config['port'] = args.port;
     config['api-keys'] = [args.cliKey];
-    config['gemini-api-key'] = [{ 'api-key': token.key }];
+    config[apiAccess] = [{ 'api-key': token.key }];
 
-    const api = config['gemini-api-key'][0];
+    const api = config[apiAccess][0];
     api['base-url'] = new URL(this.baseUrl).origin;
     api['models'] = [
       { name: args.model, alias: 'claude-opus-5' },
@@ -156,15 +182,18 @@ export abstract class BaseProvider {
   }
 
   protected async setAsCodexCompatible(): Promise<void> {
+    const apiAccess = 'codex-api-key';
+    this.removeAllExcept(apiAccess);
+
     const token = await this.getValidToken();
 
     const config = this.yamlService.read();
     config['host'] = args.host;
     config['port'] = args.port;
     config['api-keys'] = [args.cliKey];
-    config['codex-api-key'] = [{ 'api-key': token.key }];
+    config[apiAccess] = [{ 'api-key': token.key }];
 
-    const api = config['codex-api-key'][0];
+    const api = config[apiAccess][0];
     api['base-url'] = new URL(this.baseUrl).origin;
     api['models'] = [
       { name: args.model, alias: 'claude-opus-5' },
