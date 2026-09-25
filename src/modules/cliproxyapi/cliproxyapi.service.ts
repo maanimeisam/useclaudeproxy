@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import cp from 'node:child_process';
 import fs from 'node:fs';
+import { copyFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -105,7 +106,7 @@ export class CliproxyapiService {
     );
 
     if (args.renew) {
-      provider.clearStoredToken();
+      provider.clearStoredToken(); // remove data dir
       this.renewFromArchive(archivePath);
       return;
     }
@@ -163,14 +164,14 @@ export class CliproxyapiService {
     this.createConfig();
   }
 
-  public createConfig(): void {
+  public async createConfig(): Promise<void> {
     const example = path.join(TOOLS_DIR, 'config.example.yaml');
     if (!fs.existsSync(example)) {
       console.error(`❌ Missing template: ${example}`);
       process.exit(1);
     }
     if (fs.existsSync(this.CONFIG_PATH)) return;
-    fs.copyFileSync(example, this.CONFIG_PATH);
+    await copyFile(example, this.CONFIG_PATH);
     this.logger.debug(`Seeded ${this.CONFIG_PATH} from ${example}`);
   }
 

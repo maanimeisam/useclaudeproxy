@@ -1,5 +1,3 @@
-import crypto from 'node:crypto';
-
 export class OAuthHttpError extends Error {
   constructor(
     message: string,
@@ -22,8 +20,4 @@ export function parseBody<T>(response: { body: unknown }): T {
   return typeof response.body === 'string'
     ? JSON.parse(response.body)
     : (response.body as T);
-}
-
-export function generateTaskId(): string {
-  return `${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
 }

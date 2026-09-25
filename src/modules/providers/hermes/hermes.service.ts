@@ -1,8 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import path from 'node:path';
 import open from 'open';
-import { args } from '../../../config/args.js';
-import { BaseProvider } from '../base-provider.abstract.js';
+import { BaseProvider, Token } from '../base-provider.abstract.js';
 import { TokenResponse } from './hermes.interface.js';
 import { HermesOAUTH } from './hermes-oauth.service.js';
 import { ConfigService } from '@nestjs/config';
@@ -11,9 +10,9 @@ import { YamlService } from '../../yaml/yaml.service.js';
 
 @Injectable()
 export class HermesService extends BaseProvider {
+  readonly logger = new Logger(HermesService.name);
   readonly name = 'hermes';
   readonly baseUrl = 'https://inference-api.nousresearch.com/v1';
-  readonly logger = new Logger(HermesService.name);
   readonly tokenPath: string;
 
   constructor(
@@ -30,22 +29,8 @@ export class HermesService extends BaseProvider {
     );
   }
 
-  async initConfig(): Promise<void> {
-    const config = this.yamlService.read();
-
-    config['host'] = args.host;
-    config['port'] = args.port;
-    config['api-keys'] = [args.cliKey];
-    config['openai-compatibility'] = [{ name: this.name }];
-
-    const api = config['openai-compatibility'][0];
-    api['base-url'] = this.baseUrl;
-    api['models'] = [
-      { name: args.model, alias: 'claude-opus-5' },
-      { name: args.model, alias: '' },
-    ];
-
-    api['headers'] = {
+  buildUpstremHeaders(): Record<string, string> {
+    return {
       'User-Agent': 'OpenAI/Python 2.24.0',
       'X-Stainless-Arch': 'x64',
       'X-Stainless-Async': 'false',
@@ -57,22 +42,19 @@ export class HermesService extends BaseProvider {
       'X-Stainless-Runtime': 'CPython',
       'X-Stainless-Runtime-Version': '3.11.15',
     };
-
-    api['disable-cooling'] = true;
-
-    const token = await this.getValidToken();
-    this.setApiKey(token.access_token);
-
-    this.yamlService.write(config);
   }
 
-  async getValidToken(): Promise<TokenResponse> {
+  async initConfig(): Promise<void> {
+    return this.setAsOpenAiCompatible();
+  }
+
+  async getValidToken(): Promise<Token<TokenResponse>> {
     const stored = this.readStoredToken<TokenResponse>();
     if (stored) {
       try {
         await this.client.fetchAccountInfo(stored.access_token);
         this.logger.log('Stored token valid');
-        return stored;
+        return { key: stored.access_token, upstreamData: stored };
       } catch (err) {
         this.logger.error(`Stored Access-Token invalid:`, err);
       }
@@ -82,8 +64,8 @@ export class HermesService extends BaseProvider {
           const refreshed = await this.client.refreshToken(
             stored.refresh_token,
           );
-          this.saveTokens(refreshed);
-          return refreshed;
+          this.saveTokensAsFile(refreshed);
+          return { key: refreshed.access_token, upstreamData: refreshed };
         } catch (err) {
           this.logger.error('Stored Refresh-Token invalid:', err);
         }
@@ -97,7 +79,7 @@ export class HermesService extends BaseProvider {
       this.configService.get<number>('WATCH_INTERVAL_MS')!;
 
     this.logger.log('Watching token every(ms):', WATCH_INTERVAL_MS);
-    let current = (await this.getValidToken()).access_token;
+    let current = (await this.getValidToken()).key;
     while (!signal?.aborted) {
       try {
         const _account = await this.client.fetchAccountInfo(current);
@@ -106,14 +88,16 @@ export class HermesService extends BaseProvider {
       } catch (err) {
         this.logger.error('Token invalid, renewing:', err);
         const refreshed = await this.getValidToken();
-        current = refreshed.access_token;
-        this.logger.log(`Token RENEWED (expires_in=${refreshed.expires_in})`);
+        current = refreshed.key;
+        this.logger.log(
+          `Token RENEWED (expires_in=${refreshed.upstreamData.expires_in})`,
+        );
       }
       await this.commonService.sleep(WATCH_INTERVAL_MS, signal);
     }
   }
 
-  private async runDeviceFlow(): Promise<TokenResponse> {
+  private async runDeviceFlow(): Promise<Token<TokenResponse>> {
     const deviceCode = await this.client.requestDeviceCode();
     this.logger.log('Device code received: user_code>>>', deviceCode.user_code);
 
@@ -128,14 +112,15 @@ export class HermesService extends BaseProvider {
       `Opened ${verificationUrl}. If it didn't open, enter code ${deviceCode.user_code} there.`,
     );
 
-    const token = await this.client.pollForToken(deviceCode.device_code);
+    const result = await this.client.pollForToken(deviceCode.device_code);
+    const token = { key: result.access_token, upstreamData: result };
     this.logger.log('Authorization successful');
-    this.saveTokens(token);
+    this.saveTokensAsFile(result);
     return token;
   }
 
-  override saveTokens(token: TokenResponse): void {
-    super.saveTokens(token);
-    this.setApiKey(token.access_token);
+  override saveTokensAsFile(token: TokenResponse): void {
+    super.saveTokensAsFile(token);
+    this.setOpenAiApiKey(token.access_token);
   }
 }

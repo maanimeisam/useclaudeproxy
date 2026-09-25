@@ -3,52 +3,18 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { args } from '../../../config/args.js';
-import { BaseProvider } from '../base-provider.abstract.js';
+import { BaseProvider, Token } from '../base-provider.abstract.js';
 import { ConfigService } from '@nestjs/config';
 import { Got } from 'got';
 import { CommonService } from '../../common/common.service.js';
 import { YamlService } from '../../yaml/yaml.service.js';
 import { HttpService } from '../../http/http.service.js';
 
-type Token = {
-  key: string;
-};
-
-function generateRequestId(): string {
-  return `msg_${crypto.randomUUID().replace(/-/g, '')}`;
-}
-
-function generateSessionId(): string {
-  return `ses_${crypto.randomUUID().replace(/-/g, '')}`;
-}
-
-function toOpencodeSession(id: string | undefined | null): string | null {
-  const stripped = String(id ?? '')
-    .replace(/^ses_/, '')
-    .replace(/-/g, '');
-  return stripped ? `ses_${stripped}` : null;
-}
-
-function buildOpenCodeHeaders(sessionId?: string): Record<string, string> {
-  const currentSession = toOpencodeSession(sessionId) ?? generateSessionId();
-  return {
-    'Content-Type': 'application/json',
-    'User-Agent':
-      'opencode/1.18.23 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14',
-    'x-opencode-client': 'cli',
-    'x-opencode-session': currentSession,
-    'x-opencode-request': generateRequestId(),
-    'x-opencode-project': 'global',
-    accept: '*/*',
-    'accept-encoding': 'gzip, deflate, br',
-  };
-}
-
 @Injectable()
 export class OpencodeService extends BaseProvider {
+  readonly logger = new Logger(OpencodeService.name);
   readonly name = 'opencode';
   readonly baseUrl = 'https://opencode.ai/zen/v1';
-  readonly logger = new Logger(OpencodeService.name);
   public readonly tokenPath: string;
   private readonly httpClient: Got;
 
@@ -68,27 +34,7 @@ export class OpencodeService extends BaseProvider {
   }
 
   async initConfig(): Promise<void> {
-    const config = this.yamlService.read();
-
-    config['host'] = args.host;
-    config['port'] = args.port;
-    config['api-keys'] = [args.cliKey];
-    config['openai-compatibility'] = [{ name: this.name }];
-
-    const api = config['openai-compatibility'][0];
-    api['base-url'] = this.baseUrl;
-    api['models'] = [
-      { name: args.model, alias: 'claude-opus-5' },
-      { name: args.model, alias: '' },
-    ];
-    api['disable-cooling'] = true;
-
-    api['headers'] = buildOpenCodeHeaders();
-
-    const token = await this.getValidToken();
-    this.setApiKey(token.key);
-
-    this.yamlService.write(config);
+    return this.setAsOpenAiCompatible();
   }
 
   async getValidToken(): Promise<Token> {
@@ -99,15 +45,16 @@ export class OpencodeService extends BaseProvider {
 
     const token: Token = {
       key: 'public',
+      upstreamData: { key: 'public' },
     };
-    this.saveTokens(token);
+    this.saveTokensAsFile(token);
 
     return token;
   }
 
-  override saveTokens(token: Token): void {
-    super.saveTokens(token);
-    this.setApiKey(token.key);
+  override saveTokensAsFile(token: Token): void {
+    super.saveTokensAsFile(token.upstreamData);
+    this.setOpenAiApiKey(token.key);
   }
 
   async startTokenWatcher(signal?: AbortSignal): Promise<void> {
@@ -124,7 +71,7 @@ export class OpencodeService extends BaseProvider {
           `${this.baseUrl}/chat/completions`,
           {
             headers: {
-              ...buildOpenCodeHeaders(),
+              ...this.buildUpstremHeaders(),
               Authorization: `Bearer ${token.key}`,
             },
             json: {
@@ -151,5 +98,37 @@ export class OpencodeService extends BaseProvider {
       }
       await this.commonService.sleep(WATCH_INTERVAL_MS, signal);
     }
+  }
+
+  private generateRequestId(): string {
+    return `msg_${crypto.randomUUID().replace(/-/g, '')}`;
+  }
+
+  private generateSessionId(): string {
+    return `ses_${crypto.randomUUID().replace(/-/g, '')}`;
+  }
+
+  private toOpencodeSession(id: string | undefined | null): string | null {
+    const stripped = String(id ?? '')
+      .replace(/^ses_/, '')
+      .replace(/-/g, '');
+    return stripped ? `ses_${stripped}` : null;
+  }
+
+  buildUpstremHeaders(sessionId?: string): Record<string, string> {
+    const currentSession =
+      this.toOpencodeSession(sessionId) ?? this.generateSessionId();
+
+    return {
+      'Content-Type': 'application/json',
+      'User-Agent':
+        'opencode/1.18.23 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14',
+      'x-opencode-client': 'cli',
+      'x-opencode-session': currentSession,
+      'x-opencode-request': this.generateRequestId(),
+      'x-opencode-project': 'global',
+      accept: '*/*',
+      'accept-encoding': 'gzip, deflate, br',
+    };
   }
 }

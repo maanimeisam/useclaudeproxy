@@ -2,22 +2,18 @@ import { Injectable, Logger } from '@nestjs/common';
 import fs from 'node:fs';
 import path from 'node:path';
 import { args } from '../../../config/args.js';
-import { BaseProvider } from '../base-provider.abstract.js';
+import { BaseProvider, Token } from '../base-provider.abstract.js';
 import { ConfigService } from '@nestjs/config';
 import { Got } from 'got';
 import { CommonService } from '../../common/common.service.js';
 import { YamlService } from '../../yaml/yaml.service.js';
 import { HttpService } from '../../http/http.service.js';
 
-type Token = {
-  key: string;
-};
-
 @Injectable()
 export class CustomService extends BaseProvider {
+  readonly logger = new Logger(CustomService.name);
   readonly name = 'custom';
   readonly baseUrl = args.url;
-  readonly logger = new Logger(CustomService.name);
   public readonly tokenPath: string;
   private readonly httpClient: Got;
 
@@ -36,28 +32,12 @@ export class CustomService extends BaseProvider {
     );
   }
 
+  buildUpstremHeaders(): Record<string, string> {
+    return {};
+  }
+
   async initConfig(): Promise<void> {
-    const config = this.yamlService.read();
-
-    config['host'] = args.host;
-    config['port'] = args.port;
-    config['api-keys'] = [args.cliKey];
-    config['openai-compatibility'] = [{ name: this.name }];
-
-    const api = config['openai-compatibility'][0];
-    api['base-url'] = this.baseUrl;
-    api['models'] = [
-      { name: args.model, alias: 'claude-opus-5' },
-      { name: args.model, alias: '' },
-    ];
-    api['disable-cooling'] = true;
-
-    api['headers'] = {};
-
-    const token = await this.getValidToken();
-    this.setApiKey(token.key);
-
-    this.yamlService.write(config);
+    return this.setAsOpenAiCompatible();
   }
 
   async getValidToken(): Promise<Token> {
@@ -66,14 +46,14 @@ export class CustomService extends BaseProvider {
       if (token) return token;
     }
 
-    const token: Token = { key: args.api };
-    this.saveTokens(token);
+    const token: Token = { key: args.api, upstreamData: { key: args.api } };
+    this.saveTokensAsFile(token);
     return token;
   }
 
-  override saveTokens(token: Token): void {
-    super.saveTokens(token);
-    this.setApiKey(token.key);
+  override saveTokensAsFile(token: Token): void {
+    super.saveTokensAsFile(token.upstreamData);
+    this.setOpenAiApiKey(token.key);
   }
 
   async startTokenWatcher(signal?: AbortSignal): Promise<void> {

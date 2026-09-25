@@ -1,20 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import path from 'node:path';
 import open from 'open';
-import { args } from '../../../config/args.js';
-import { BaseProvider } from '../base-provider.abstract.js';
+import { BaseProvider, Token } from '../base-provider.abstract.js';
 import { ClineOAUTH } from './cline-oauth.service.js';
 import { YamlService } from '../../yaml/yaml.service.js';
 import { ConfigService } from '@nestjs/config';
 import { TokenResponse } from './cline.interface.js';
-import { generateTaskId } from './shared.js';
 import { CommonService } from '../../common/common.service.js';
+import crypto from 'node:crypto';
 
 @Injectable()
 export class ClineService extends BaseProvider {
+  readonly logger = new Logger(ClineService.name);
   public readonly name = 'cline';
   public readonly baseUrl = 'https://api.cline.bot/api/v1';
-  readonly logger = new Logger(ClineService.name);
   public readonly tokenPath: string;
 
   constructor(
@@ -31,22 +30,12 @@ export class ClineService extends BaseProvider {
     );
   }
 
-  async initConfig(): Promise<void> {
-    const config = this.yamlService.read();
+  private generateTaskId(): string {
+    return `${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+  }
 
-    config['host'] = args.host;
-    config['port'] = args.port;
-    config['api-keys'] = [args.cliKey];
-    config['openai-compatibility'] = [{ name: this.name }];
-
-    const api = config['openai-compatibility'][0];
-    api['base-url'] = this.baseUrl;
-    api['models'] = [
-      { name: args.model, alias: 'claude-opus-5' },
-      { name: args.model, alias: '' },
-    ];
-
-    api['headers'] = {
+  buildUpstremHeaders(): Record<string, string> {
+    return {
       'Content-Type': 'application/json',
       'Http-Referer': 'https://cline.bot',
       'User-Agent':
@@ -57,40 +46,38 @@ export class ClineService extends BaseProvider {
       'X-Is-Multiroot': 'false',
       'X-Platform': 'cli',
       'X-Platform-Version': '3.0.65',
-      'X-Task-Id': generateTaskId(),
+      'X-Task-Id': this.generateTaskId(),
       'X-Title': 'Cline',
       Accept: '*/*',
       'Accept-Language': '*',
       'Accept-Encoding': 'gzip, deflate, br',
       Connection: 'keep-alive',
     };
-
-    api['disable-cooling'] = true;
-
-    const token = await this.getValidToken();
-    this.setApiKey(token.access_token);
-
-    this.yamlService.write(config);
   }
 
-  async getValidToken(): Promise<TokenResponse> {
+  async initConfig(): Promise<void> {
+    return this.setAsOpenAiCompatible();
+  }
+
+  async getValidToken(): Promise<Token> {
     const stored = this.readStoredToken<TokenResponse>();
     if (stored) {
       try {
         await this.client.fetchAccountInfo(stored.access_token);
         this.logger.log('Stored token valid');
-        return stored;
+        return { key: stored.access_token, upstreamData: stored };
       } catch (err) {
         this.logger.error(`Stored Access-Token invalid: ${err}`);
       }
+
       if (stored.refresh_token) {
         try {
           this.logger.log('Refreshing stored token');
           const refreshed = await this.client.refreshToken(
             stored.refresh_token,
           );
-          this.saveTokens(refreshed);
-          return refreshed;
+          this.saveTokensAsFile(refreshed);
+          return { key: refreshed.access_token, upstreamData: refreshed };
         } catch (err) {
           this.logger.error(`Stored Refresh-Token invalid: ${err}`);
         }
@@ -104,7 +91,7 @@ export class ClineService extends BaseProvider {
       this.configService.get<number>('WATCH_INTERVAL_MS')!;
 
     this.logger.log(`Watching token every ${WATCH_INTERVAL_MS}ms`);
-    let current = (await this.getValidToken()).access_token;
+    let current = (await this.getValidToken()).key;
 
     while (!signal?.aborted) {
       try {
@@ -113,14 +100,14 @@ export class ClineService extends BaseProvider {
       } catch (err) {
         this.logger.error(`Token invalid, renewing: ${err}`);
         const refreshed = await this.getValidToken();
-        current = refreshed.access_token;
+        current = refreshed.key;
         this.logger.log('Token RENEWED');
       }
       await this.commonService.sleep(WATCH_INTERVAL_MS, signal);
     }
   }
 
-  private async runDeviceFlow(): Promise<TokenResponse> {
+  private async runDeviceFlow(): Promise<Token> {
     const deviceCode = await this.client.requestDeviceCode();
     this.logger.log(`Device code received: user_code=${deviceCode.user_code}`);
 
@@ -135,14 +122,15 @@ export class ClineService extends BaseProvider {
       `Opened ${verificationUrl}. If it didn't open, enter code ${deviceCode.user_code} there.`,
     );
 
-    const token = await this.client.pollForToken(deviceCode.device_code);
+    const result = await this.client.pollForToken(deviceCode.device_code);
+    const token = { key: result.access_token, upstreamData: result };
     this.logger.log('Authorization successful');
-    this.saveTokens(token);
+    this.saveTokensAsFile(result);
     return token;
   }
 
-  override saveTokens(token: TokenResponse): void {
-    super.saveTokens(token);
-    this.setApiKey(token.access_token);
+  override saveTokensAsFile(token: TokenResponse): void {
+    super.saveTokensAsFile(token);
+    this.setOpenAiApiKey(token.access_token);
   }
 }
