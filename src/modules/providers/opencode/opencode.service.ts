@@ -100,12 +100,12 @@ export class OpencodeService extends BaseProvider {
     }
   }
 
-  private generateRequestId(): string {
-    return `msg_${crypto.randomUUID().replace(/-/g, '')}`;
+  private generateRequestId(length: number = 30): string {
+    return `msg_${crypto.randomUUID().replace(/-/g, '')}`.slice(0, length);
   }
 
-  private generateSessionId(): string {
-    return `ses_${crypto.randomUUID().replace(/-/g, '')}`;
+  private generateSessionId(length: number = 30): string {
+    return `ses_${crypto.randomUUID().replace(/-/g, '')}`.slice(0, length);
   }
 
   private toOpencodeSession(id: string | undefined | null): string | null {
@@ -122,7 +122,7 @@ export class OpencodeService extends BaseProvider {
     return {
       'Content-Type': 'application/json',
       'User-Agent':
-        'opencode/1.18.23 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14',
+        'opencode/1.18.32 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14',
       'x-opencode-client': 'cli',
       'x-opencode-session': currentSession,
       'x-opencode-request': this.generateRequestId(),
